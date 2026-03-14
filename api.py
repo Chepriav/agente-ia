@@ -25,6 +25,9 @@ def leer_pdf(ruta):
     return texto
 
 def inicializar_rag():
+    if not os.path.exists("documento.pdf"):
+        print("⚠️ No se encontró documento.pdf, RAG desactivado")
+        return None
     texto = leer_pdf("documento.pdf")
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     trozos = splitter.split_text(texto)
@@ -63,6 +66,8 @@ def chat(mensaje: Mensaje):
 
 @app.post("/rag")
 def rag(mensaje: Mensaje):
+    if coleccion is None:
+        return {"respuesta": "RAG no disponible: no hay documento cargado en el servidor."}
     resultados = coleccion.query(
         query_texts=[mensaje.texto],
         n_results=3
