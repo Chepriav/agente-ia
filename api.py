@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chromadb
+import os
 
 load_dotenv()
 
