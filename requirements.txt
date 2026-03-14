@@ -2,3 +2,7 @@ anthropic
 python-dotenv
 fastapi
 uvicorn
+pypdf
+langchain-text-splitters
+langchain-anthropic
+chromadb
