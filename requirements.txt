@@ -3,6 +3,12 @@ python-dotenv
 fastapi
 uvicorn
 pypdf
+python-docx
+sentence-transformers
+chromadb
+rank-bm25
+numpy
 langchain-text-splitters
 langchain-anthropic
-chromadb
+langchain-community
+python-multipart
