@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -38,7 +38,8 @@ class Message(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    """Redirige la raíz a la interfaz web."""
+    return RedirectResponse(url="/ui")
 
 
 @app.post("/chat")
