@@ -3,3 +3,5 @@ venv/
 __pycache__/
 *.pyc
 documento.pdf
+documents/
+chroma_db/
