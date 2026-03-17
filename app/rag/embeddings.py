@@ -1,6 +1,7 @@
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
+import os
 
 # Modelo multilingüe optimizado para texto técnico en español e inglés.
 # Ventaja clave: corre en tu servidor, los documentos del cliente nunca
@@ -15,13 +16,17 @@ def get_embedding_model():
     return SentenceTransformer(MODEL_NAME)
 
 
+# Ruta absoluta para que funcione independientemente de desde dónde se ejecute
+CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "chroma_db")
+
+_chroma_client = None
+
 def get_chroma_client():
-    """
-    Devuelve un cliente ChromaDB persistente.
-    'persistent' significa que los vectores se guardan en disco,
-    no se pierden al reiniciar el servidor.
-    """
-    return chromadb.PersistentClient(path="./chroma_db")
+    """Devuelve siempre la misma instancia del cliente ChromaDB."""
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+    return _chroma_client
 
 
 def index_chunks(chunks: list[str], collection_name: str) -> int:
