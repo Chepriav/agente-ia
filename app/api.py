@@ -29,17 +29,6 @@ def root():
     return {"status": "ok"}
 
 
-@app.get("/debug")
-def debug():
-    from app.rag.embeddings import get_chroma_client
-    client_chroma = get_chroma_client()
-    collections = client_chroma.list_collections()
-    return {
-        "collections": [c.name for c in collections],
-        "cache_keys": list(chunks_cache.keys())
-    }
-
-
 @app.post("/chat")
 def chat(mensaje: Message):
     """Conversación general sin contexto de documentos."""
@@ -86,12 +75,10 @@ async def upload_document(
 def rag(mensaje: Message):
     """
     Responde preguntas usando los documentos indexados.
+    Usa hybrid search para encontrar los chunks más relevantes.
     """
-    print(f"Cache keys: {list(chunks_cache.keys())}")
-    print(f"Buscando colección: {mensaje.collection}")
-
     if mensaje.collection not in chunks_cache:
-        return {"response": "No hay documentos indexados en esta colección.", "collection": mensaje.collection}
+        return {"response": "No hay documentos indexados en esta colección."}
 
     chunks = chunks_cache[mensaje.collection]
     resultados = hybrid_search(mensaje.text, mensaje.collection, chunks)

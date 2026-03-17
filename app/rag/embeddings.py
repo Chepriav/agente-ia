@@ -1,6 +1,5 @@
 from sentence_transformers import SentenceTransformer
 import chromadb
-from chromadb.config import Settings
 import os
 
 # Modelo multilingüe optimizado para texto técnico en español e inglés.
@@ -8,18 +7,19 @@ import os
 # salen a ninguna API externa.
 MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 
-def get_embedding_model():
-    """
-    Carga el modelo de embeddings.
-    La primera vez descarga el modelo (~400MB), luego lo cachea localmente.
-    """
-    return SentenceTransformer(MODEL_NAME)
-
-
 # Ruta absoluta para que funcione independientemente de desde dónde se ejecute
 CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "chroma_db")
 
 _chroma_client = None
+
+
+def get_embedding_model():
+    """
+    Carga el modelo de embeddings.
+    La primera vez descarga el modelo, luego lo cachea localmente.
+    """
+    return SentenceTransformer(MODEL_NAME)
+
 
 def get_chroma_client():
     """Devuelve siempre la misma instancia del cliente ChromaDB."""
@@ -32,7 +32,7 @@ def get_chroma_client():
 def index_chunks(chunks: list[str], collection_name: str) -> int:
     """
     Convierte los chunks en vectores y los guarda en ChromaDB.
-    Cada colección es un cliente o documento indexado por separado.
+    Cada colección corresponde a un cliente o conjunto de documentos.
     Devuelve el número de chunks indexados.
     """
     model = get_embedding_model()
@@ -45,8 +45,6 @@ def index_chunks(chunks: list[str], collection_name: str) -> int:
         pass
 
     collection = client.create_collection(collection_name)
-
-    # Generamos los embeddings en lotes para no saturar la memoria
     embeddings = model.encode(chunks, show_progress_bar=True).tolist()
 
     collection.add(
@@ -60,8 +58,7 @@ def index_chunks(chunks: list[str], collection_name: str) -> int:
 
 def search(query: str, collection_name: str, n_results: int = 5) -> list[str]:
     """
-    Busca los chunks más relevantes para una pregunta.
-    Convierte la pregunta en vector y busca los más similares en ChromaDB.
+    Busca los chunks más relevantes para una pregunta usando similitud semántica.
     """
     model = get_embedding_model()
     client = get_chroma_client()
