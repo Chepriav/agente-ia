@@ -1,0 +1,42 @@
+[
+  {
+    "question": "What are the main generative AI models used in cybersecurity?",
+    "expected_answer": "GANs, VAEs, and autoregressive models like Transformers"
+  },
+  {
+    "question": "How does generative AI help in threat intelligence operations?",
+    "expected_answer": "By analyzing large volumes of data, automating threat detection and supporting threat hunting"
+  },
+  {
+    "question": "What is the role of GANs in cybersecurity?",
+    "expected_answer": "GANs use two neural networks (generator and discriminator) that compete to produce realistic data, useful for simulating attacks and testing defenses"
+  },
+  {
+    "question": "What are the ethical implications of using generative AI in cyber defense?",
+    "expected_answer": "Governance frameworks and ethical guidelines are needed to address biases and ethical implications of generative AI deployment"
+  },
+  {
+    "question": "How should organizations update their AI models for cybersecurity?",
+    "expected_answer": "Organizations need to regularly update their models with new threat data to match emerging cybersecurity threats"
+  },
+  {
+    "question": "What is the importance of human collaboration in AI-based cyber defense?",
+    "expected_answer": "Collaboration with cybersecurity analysts is essential to find correct solutions and face particular threats"
+  },
+  {
+    "question": "How does generative AI integrate with existing IT security infrastructure?",
+    "expected_answer": "Through integration with firewalls, monitoring systems and SIEM to facilitate detection of malicious activity"
+  },
+  {
+    "question": "What is reinforcement learning and how is it used in cybersecurity?",
+    "expected_answer": "Reinforcement learning processes increase effectiveness over time by accumulating lessons from past experiences"
+  },
+  {
+    "question": "How does generative AI strengthen cyber defenses proactively?",
+    "expected_answer": "By analyzing threats in advance and strengthening defenses before adversaries can exploit vulnerabilities"
+  },
+  {
+    "question": "What are VAEs and how are they used in threat detection?",
+    "expected_answer": "VAEs are probabilistic models that learn to encode data preserving essential properties, used for anomaly detection in cybersecurity"
+  }
+]

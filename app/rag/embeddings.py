@@ -12,13 +12,17 @@ CHROMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..
 
 _chroma_client = None
 
+_embedding_model = None
 
 def get_embedding_model():
     """
-    Carga el modelo de embeddings.
-    La primera vez descarga el modelo, luego lo cachea localmente.
+    Carga el modelo una sola vez y lo reutiliza.
+    Sin esto el modelo se recarga en cada llamada, lo que es lento y consume memoria.
     """
-    return SentenceTransformer(MODEL_NAME)
+    global _embedding_model
+    if _embedding_model is None:
+        _embedding_model = SentenceTransformer(MODEL_NAME)
+    return _embedding_model
 
 
 def get_chroma_client():
