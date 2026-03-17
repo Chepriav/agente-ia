@@ -1,5 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -18,7 +20,17 @@ Respondes de forma clara, concisa y práctica."""
 historial = []
 chunks_cache = {}
 
+# --- Frontend ---
+os.makedirs("app/static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+@app.get("/ui")
+def ui():
+    """Sirve la interfaz web del producto."""
+    return FileResponse("app/static/index.html")
+
+
+# --- API ---
 class Message(BaseModel):
     text: str
     collection: str = "default"
