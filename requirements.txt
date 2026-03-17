@@ -11,4 +11,5 @@ numpy
 langchain-text-splitters
 langchain-anthropic
 langchain-community
-python-multipartaiofiles
+python-multipart
+aiofiles
