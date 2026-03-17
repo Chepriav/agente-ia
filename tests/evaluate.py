@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+import time
 
 # Añadir el directorio raíz al path para poder importar app/
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,8 +17,11 @@ load_dotenv()
 client = Anthropic()
 
 
-def ask_rag(question: str, chunks: list[str], collection: str) -> str:
-    """Hace una pregunta al pipeline RAG y devuelve la respuesta."""
+def ask_rag(question: str, chunks: list[str], collection: str) -> tuple[str, str]:
+    """
+    Hace una pregunta al pipeline RAG.
+    Devuelve la respuesta y el contexto usado, los dos juntos para evaluar.
+    """
     results = hybrid_search(question, collection, chunks)
     context = "\n\n".join(results)
 
@@ -35,53 +39,69 @@ CONTEXTO:
 PREGUNTA: {question}"""
         }]
     )
-    return response.content[0].text
+    return response.content[0].text, context
 
 
 def evaluate_faithfulness(answer: str, context: str) -> float:
     """
-    Evalúa si la respuesta está fundamentada en el contexto.
-    Pregunta a Claude si la respuesta se puede deducir del contexto.
-    Devuelve 1.0 si es fiel, 0.0 si no lo es.
+    Evalúa del 0 al 10 si la respuesta está fundamentada en el contexto.
+    0 = inventado completamente, 10 = todo viene del contexto.
     """
     response = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=10,
+        max_tokens=50,
         messages=[{
             "role": "user",
-            "content": f"""¿La siguiente respuesta está completamente fundamentada en el contexto dado?
-Responde SOLO con "SI" o "NO".
+            "content": f"""Evalúa del 0 al 10 si la respuesta está fundamentada en el contexto.
+0 = la respuesta inventa información que no está en el contexto.
+10 = toda la información de la respuesta viene directamente del contexto.
 
-CONTEXTO: {context[:500]}
+Responde SOLO con un número del 0 al 10, sin explicación.
 
-RESPUESTA: {answer[:300]}"""
+CONTEXTO: {context[:600]}
+
+RESPUESTA: {answer[:400]}
+
+PUNTUACIÓN:"""
         }]
     )
-    return 1.0 if "SI" in response.content[0].text.upper() else 0.0
+    try:
+        score = float(response.content[0].text.strip().split()[0])
+        return min(max(score / 10.0, 0.0), 1.0)
+    except Exception:
+        return 0.0
 
 
 def evaluate_relevancy(question: str, answer: str) -> float:
-    """
-    Evalúa si la respuesta responde realmente la pregunta.
-    Devuelve 1.0 si es relevante, 0.0 si no lo es.
-    """
     response = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=10,
+        max_tokens=50,
         messages=[{
             "role": "user",
-            "content": f"""¿La siguiente respuesta responde directamente la pregunta?
-Responde SOLO con "SI" o "NO".
+            "content": f"""Evalúa del 0 al 10 si la respuesta responde directamente la pregunta.
+0 = no responde la pregunta en absoluto.
+10 = responde la pregunta de forma directa y completa.
+
+Responde SOLO con un número del 0 al 10, sin explicación.
 
 PREGUNTA: {question}
 
-RESPUESTA: {answer[:300]}"""
+RESPUESTA: {answer[:400]}
+
+PUNTUACIÓN:"""
         }]
     )
-    return 1.0 if "SI" in response.content[0].text.upper() else 0.0
-
+    raw = response.content[0].text.strip()
+    try:
+        score = float(raw.split()[0])
+        return min(max(score / 10.0, 0.0), 1.0)
+    except Exception as e:
+        print(f"  Parse error: {e}")
+        return 0.0
 
 def run_evaluation(document_path: str, questions_path: str):
+    print(f"Usando documento: {document_path}")
+    print(f"Usando preguntas: {questions_path}")
     """
     Ejecuta la evaluación completa del pipeline RAG.
     Mide faithfulness y answer relevancy sobre el conjunto de test.
@@ -102,21 +122,27 @@ def run_evaluation(document_path: str, questions_path: str):
         question = item["question"]
         print(f"[{i+1}/{len(questions)}] {question}")
 
-        # Obtener respuesta del RAG
-        answer = ask_rag(question, chunks, "eval_collection")
-
-        # Obtener contexto usado
-        context_chunks = hybrid_search(question, "eval_collection", chunks)
-        context = "\n\n".join(context_chunks)
-
-        # Evaluar métricas
-        faith = evaluate_faithfulness(answer, context)
-        relev = evaluate_relevancy(question, answer)
+        # Reintentar si la API está saturada
+        for attempt in range(3):
+            try:
+                answer, context = ask_rag(question, chunks, "eval_collection")
+                faith = evaluate_faithfulness(answer, context)
+                relev = evaluate_relevancy(question, answer)
+                break
+            except Exception as e:
+                if attempt < 2:
+                    print(f"  API saturada, reintentando en 10s...")
+                    time.sleep(10)
+                else:
+                    print(f"  Error después de 3 intentos: {e}")
+                    faith, relev = 0.0, 0.0
 
         faithfulness_scores.append(faith)
         relevancy_scores.append(relev)
+        print(f"  Faithfulness: {faith:.2f} | Relevancy: {relev:.2f}")
 
-        print(f"  Faithfulness: {faith} | Relevancy: {relev}")
+        # Pausa entre preguntas para no saturar la API
+        time.sleep(2)
 
     # Resultados finales
     avg_faith = sum(faithfulness_scores) / len(faithfulness_scores)
@@ -132,7 +158,15 @@ def run_evaluation(document_path: str, questions_path: str):
         print("\n✅ Pipeline aprobado - listo para producción")
     else:
         print("\n❌ Pipeline suspendido - revisar chunking o embeddings")
+        if avg_faith < 0.80:
+            print("   → Faithfulness baja: el modelo está inventando, revisar contexto")
+        if avg_relev < 0.75:
+            print("   → Relevancy baja: el retrieval no encuentra la información correcta")
 
 
 if __name__ == "__main__":
-    run_evaluation("documento.pdf", "tests/test_questions.json")
+    import sys
+    if len(sys.argv) == 3:
+        run_evaluation(sys.argv[1], sys.argv[2])
+    else:
+        run_evaluation("documento.pdf", "tests/test_questions.json")

@@ -1,0 +1,42 @@
+[
+  {
+    "question": "¿Cuáles son las tres estrategias de chunking y cuándo usar cada una?",
+    "expected_answer": "Por caracteres para prototipado rápido, por tokens para respetar límites del LLM, y semántico para documentos empresariales y contratos"
+  },
+  {
+    "question": "¿Qué porcentaje de overlap se recomienda para documentación técnica?",
+    "expected_answer": "Un overlap de 10-15% del tamaño del chunk"
+  },
+  {
+    "question": "¿Cómo se valida que un modelo de embeddings es adecuado para un corpus?",
+    "expected_answer": "Tomando 20-30 preguntas representativas y midiendo si el modelo posiciona los documentos correctos en los primeros 5 resultados. Si no supera el 70% de las preguntas, el modelo no es adecuado"
+  },
+  {
+    "question": "¿Qué problema resuelve BM25 que la búsqueda semántica no puede resolver?",
+    "expected_answer": "BM25 resuelve la búsqueda de términos exactos como códigos de producto, siglas internas y números de referencia que la búsqueda semántica no captura bien"
+  },
+  {
+    "question": "¿Qué valor de alpha se recomienda para corpus con mucha terminología técnica exacta?",
+    "expected_answer": "Alpha entre 0.3 y 0.4 para dar más peso a BM25"
+  },
+  {
+    "question": "¿Qué diferencia hay entre reranking y retrieval?",
+    "expected_answer": "El reranking no mejora el retrieval, reordena sus resultados con un segundo modelo más preciso. No puede inventar fragmentos que el retrieval no trajo"
+  },
+  {
+    "question": "¿Cuáles son los tres umbrales de referencia para las métricas de evaluación?",
+    "expected_answer": "Faithfulness mayor a 0.85, answer relevancy mayor a 0.80 y context precision mayor a 0.75"
+  },
+  {
+    "question": "¿Qué vector store se recomienda para desarrollo y corpus mediano?",
+    "expected_answer": "Chroma es ideal para desarrollo y corpus mediano con setup local"
+  },
+  {
+    "question": "¿Cuándo tiene más sentido usar fine-tuning en lugar de RAG?",
+    "expected_answer": "Cuando se quiere cambiar el comportamiento o tono del modelo, el conocimiento es estable o se necesita latencia muy baja"
+  },
+  {
+    "question": "¿Qué error ocurre si se añade reranking antes de validar el retrieval base?",
+    "expected_answer": "El reranking no puede inventar fragmentos que el retrieval no trajo. El diagnóstico correcto es de abajo hacia arriba: chunking, embeddings, retrieval y por último reranking"
+  }
+]
