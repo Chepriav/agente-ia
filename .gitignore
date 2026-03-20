@@ -5,3 +5,4 @@ __pycache__/
 documento.pdf
 documents/
 chroma_db/
+data/

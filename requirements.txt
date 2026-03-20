@@ -14,4 +14,4 @@ langchain-text-splitters
 langchain-anthropic
 langchain-community
 python-multipart
-aiofiles
+aiofilesvoyageai
