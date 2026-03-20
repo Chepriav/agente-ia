@@ -4,10 +4,6 @@ fastapi
 uvicorn
 pypdf
 python-docx
-numpy==2.4.3
-sentence-transformers==5.3.0
-torch==2.10.0
-transformers==5.3.0
 chromadb
 rank-bm25
 langchain-text-splitters
