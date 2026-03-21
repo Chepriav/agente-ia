@@ -12,4 +12,6 @@ langchain-community
 python-multipart
 aiofiles
 voyageai
-unstructured[pdf,docx]
+unstructured
+pdfminer-six
+python-magic

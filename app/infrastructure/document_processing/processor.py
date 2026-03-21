@@ -1,7 +1,8 @@
 import re
 import statistics
-from unstructured.partition.auto import partition
-from unstructured.documents.elements import Title, NarrativeText, Text, ListItem, Table
+from unstructured.partition.pdf import partition_pdf
+from unstructured.partition.docx import partition_docx
+from unstructured.documents.elements import Title
 
 MAX_CHUNK_SIZE = 1500
 OVERLAP_RATIO = 0.2  # 20% de overlap
@@ -9,10 +10,15 @@ OVERLAP_RATIO = 0.2  # 20% de overlap
 
 def read_document(path: str) -> list:
     """
-    Lee un PDF o Word usando unstructured.
-    Devuelve elementos tipados con metadata de formato.
+    Lee un PDF o Word usando unstructured con particionadores específicos.
+    Evita cargar el stack completo de ML que usa partition_auto.
     """
-    return partition(filename=path)
+    if path.endswith('.pdf'):
+        return partition_pdf(filename=path)
+    elif path.endswith('.docx'):
+        return partition_docx(filename=path)
+    else:
+        raise ValueError(f"Unsupported format: {path}")
 
 
 def get_element_height(element) -> float:
