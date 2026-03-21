@@ -12,7 +12,4 @@ langchain-community
 python-multipart
 aiofiles
 voyageai
-unstructured
-pdfminer-six
-python-magic
-pi-heif
+pdfplumber

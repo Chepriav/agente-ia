@@ -1,97 +1,80 @@
 import re
 import statistics
-from unstructured.partition.pdf import partition_pdf
-from unstructured.partition.docx import partition_docx
-from unstructured.documents.elements import Title
+import pdfplumber
+from docx import Document as DocxDocument
 
 MAX_CHUNK_SIZE = 1500
-OVERLAP_RATIO = 0.2  # 20% de overlap
+OVERLAP_RATIO = 0.2
 
 
-def read_document(path: str) -> list:
+def read_pdf(path: str) -> list[dict]:
     """
-    Lee un PDF o Word usando unstructured con particionadores específicos.
-    Evita cargar el stack completo de ML que usa partition_auto.
+    Lee un PDF con pdfplumber extrayendo texto y tamaño de fuente.
+    Devuelve lista de bloques con texto y tamaño para detectar títulos.
     """
-    if path.endswith('.pdf'):
-        return partition_pdf(filename=path)
-    elif path.endswith('.docx'):
-        return partition_docx(filename=path)
-    else:
-        raise ValueError(f"Unsupported format: {path}")
+    blocks = []
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages:
+            words = page.extract_words(extra_attrs=['size'])
+            if not words:
+                continue
+            # Agrupar palabras en líneas por posición vertical
+            lines = {}
+            for word in words:
+                y = round(word['top'], 0)
+                if y not in lines:
+                    lines[y] = {'text': '', 'size': word.get('size', 0)}
+                lines[y]['text'] += ' ' + word['text']
+                lines[y]['size'] = max(lines[y]['size'], word.get('size', 0))
+            for y in sorted(lines):
+                block = lines[y]
+                block['text'] = block['text'].strip()
+                if block['text']:
+                    blocks.append(block)
+    return blocks
 
 
-def get_element_height(element) -> float:
-    """Extrae la altura de un elemento desde sus coordenadas."""
-    coords = element.metadata.to_dict().get('coordinates', {})
-    points = coords.get('points', [])
-    if points and len(points) >= 3:
-        return points[2][1] - points[0][1]
-    return 0.0
-
-
-def detect_real_titles(elements: list) -> set:
+def read_docx(path: str) -> list[dict]:
     """
-    Detecta qué elementos son títulos reales de forma genérica.
-
-    Para documentos con coordenadas (PDF): usa altura relativa.
-    Un título real tiene altura significativamente mayor al texto normal.
-
-    Para documentos sin coordenadas (Word): confía en los Title de unstructured.
+    Lee un Word extrayendo párrafos con su estilo.
+    Los estilos Heading son títulos reales.
     """
-    title_indices = set()
-
-    # Comprobar si el documento tiene coordenadas
-    has_coordinates = any(
-        get_element_height(el) > 0
-        for el in elements[:50]
-    )
-
-    if not has_coordinates:
-        # Word u otro formato — confiar directamente en Title de unstructured
-        for i, el in enumerate(elements):
-            if isinstance(el, Title):
-                title_indices.add(i)
-        return title_indices
-
-    # PDF — usar altura relativa para filtrar falsos positivos
-    heights = [get_element_height(el) for el in elements if get_element_height(el) > 0]
-
-    if not heights:
-        return title_indices
-
-    # Calcular la mediana de altura del texto normal
-    median_height = statistics.median(heights)
-
-    # Un título real tiene altura al menos 1.4x la mediana
-    title_threshold = median_height * 1.4
-
-    for i, el in enumerate(elements):
-        if isinstance(el, Title):
-            height = get_element_height(el)
-            if height == 0 or height >= title_threshold:
-                title_indices.add(i)
-
-    return title_indices
+    doc = DocxDocument(path)
+    blocks = []
+    for para in doc.paragraphs:
+        if not para.text.strip():
+            continue
+        is_heading = para.style is not None and para.style.name.startswith('Heading')
+        blocks.append({
+            'text': para.text.strip(),
+            'is_heading': is_heading
+        })
+    return blocks
 
 
-def chunk_by_sections(elements: list, title_indices: set) -> list[str]:
+def detect_title_threshold(blocks: list[dict]) -> float:
     """
-    Para documentos estructurados.
-    Cada sección (título + contenido) = un chunk.
-    Si supera MAX_CHUNK_SIZE se subdivide con overlap.
+    Calcula el umbral de tamaño de fuente para considerar un bloque como título.
+    Usa la mediana del texto normal y multiplica por 1.4.
+    """
+    sizes = [b['size'] for b in blocks if b.get('size', 0) > 0]
+    if not sizes:
+        return 0
+    median = statistics.median(sizes)
+    return median * 1.4
+
+
+def chunk_structured(blocks: list[dict], is_title_fn) -> list[str]:
+    """
+    Agrupa bloques en chunks usando títulos como separadores.
     """
     chunks = []
     current_title = ""
     current_content = ""
 
-    for i, el in enumerate(elements):
-        text = str(el).strip()
-        if not text:
-            continue
-
-        if i in title_indices:
-            # Guardar sección anterior
+    for block in blocks:
+        text = block['text']
+        if is_title_fn(block):
             if current_content.strip():
                 section = (current_title + "\n\n" + current_content).strip()
                 chunks.extend(split_with_overlap(section))
@@ -100,7 +83,6 @@ def chunk_by_sections(elements: list, title_indices: set) -> list[str]:
         else:
             current_content += ("\n\n" if current_content else "") + text
 
-    # Última sección
     if current_content.strip():
         section = (current_title + "\n\n" + current_content).strip()
         chunks.extend(split_with_overlap(section))
@@ -108,30 +90,23 @@ def chunk_by_sections(elements: list, title_indices: set) -> list[str]:
     return chunks
 
 
-def chunk_by_sliding_window(elements: list) -> list[str]:
-    """
-    Para documentos sin estructura clara.
-    Ventana deslizante con overlap del 20%.
-    Garantiza que ninguna información queda partida entre chunks.
-    """
+def chunk_sliding_window(blocks: list[dict]) -> list[str]:
+    """Ventana deslizante con overlap para texto sin estructura."""
     overlap_size = int(MAX_CHUNK_SIZE * OVERLAP_RATIO)
     chunks = []
     current = ""
     overlap_buffer = ""
 
-    for el in elements:
-        text = str(el).strip()
-        if not text or len(text) < 20:
+    for block in blocks:
+        text = block['text']
+        if len(text) < 20:
             continue
-
         if len(current) + len(text) + 2 <= MAX_CHUNK_SIZE:
             current += ("\n\n" if current else "") + text
         else:
             if current:
                 chunks.append(current)
-                # Overlap: guardar los últimos overlap_size chars como inicio del siguiente chunk
-                overlap_buffer = current[-overlap_size:] if len(current) > overlap_size else current
-
+                overlap_buffer = current[-overlap_size:]
             current = (overlap_buffer + "\n\n" + text).strip() if overlap_buffer else text
             overlap_buffer = ""
 
@@ -142,58 +117,24 @@ def chunk_by_sliding_window(elements: list) -> list[str]:
 
 
 def split_with_overlap(text: str) -> list[str]:
-    """
-    Divide un texto largo respetando límites naturales en este orden:
-    1. Párrafos (\n)
-    2. Frases (. ! ?)
-    3. Corte forzado si no hay ningún separador natural
-    Con overlap del 20% entre chunks consecutivos.
-    """
+    """Divide texto largo con overlap."""
     if len(text) <= MAX_CHUNK_SIZE:
         return [text]
 
     overlap_size = int(MAX_CHUNK_SIZE * OVERLAP_RATIO)
-
-    # Intentar dividir por párrafos primero
-    paragraphs = [p.strip() for p in re.split(r'\n+', text) if p.strip()]
-
-    # Si los párrafos son demasiado largos, dividir por frases
-    fine_chunks = []
-    for p in paragraphs:
-        if len(p) <= MAX_CHUNK_SIZE:
-            fine_chunks.append(p)
-        else:
-            # Dividir por frases
-            sentences = re.split(r'(?<=[.!?])\s+', p)
-            current = ""
-            for sentence in sentences:
-                if len(current) + len(sentence) + 1 <= MAX_CHUNK_SIZE:
-                    current += (" " if current else "") + sentence
-                else:
-                    if current:
-                        fine_chunks.append(current)
-                    # Si la frase sola supera el límite, corte forzado
-                    if len(sentence) > MAX_CHUNK_SIZE:
-                        for i in range(0, len(sentence), MAX_CHUNK_SIZE - overlap_size):
-                            fine_chunks.append(sentence[i:i + MAX_CHUNK_SIZE])
-                    else:
-                        current = sentence
-            if current:
-                fine_chunks.append(current)
-
-    # Agrupar chunks pequeños con overlap
+    sentences = re.split(r'(?<=[.!?])\s+', text)
     chunks = []
     current = ""
     overlap_buffer = ""
 
-    for piece in fine_chunks:
-        if len(current) + len(piece) + 2 <= MAX_CHUNK_SIZE:
-            current += ("\n\n" if current else "") + piece
+    for sentence in sentences:
+        if len(current) + len(sentence) + 1 <= MAX_CHUNK_SIZE:
+            current += (" " if current else "") + sentence
         else:
             if current:
                 chunks.append(current)
-                overlap_buffer = current[-overlap_size:] if len(current) > overlap_size else current
-            current = (overlap_buffer + "\n\n" + piece).strip() if overlap_buffer else piece
+                overlap_buffer = current[-overlap_size:]
+            current = (overlap_buffer + " " + sentence).strip() if overlap_buffer else sentence
             overlap_buffer = ""
 
     if current:
@@ -204,22 +145,34 @@ def split_with_overlap(text: str) -> list[str]:
 
 def process_document(path: str) -> dict:
     """
-    Función principal. Lee el documento con unstructured,
-    detecta títulos reales de forma genérica y aplica
+    Función principal. Detecta el tipo de documento y aplica
     la estrategia de chunking más adecuada.
     """
-    elements = read_document(path)
-    title_indices = detect_real_titles(elements)
+    if path.endswith('.pdf'):
+        blocks = read_pdf(path)
+        threshold = detect_title_threshold(blocks)
+        title_count = sum(1 for b in blocks if b.get('size', 0) >= threshold)
 
-    # Si hay suficientes títulos reales, usar chunking por secciones
-    if len(title_indices) >= 2:
-        chunks = chunk_by_sections(elements, title_indices)
-        doc_type = 'structured'
+        if title_count >= 2:
+            doc_type = 'structured'
+            chunks = chunk_structured(blocks, lambda b: b.get('size', 0) >= threshold)
+        else:
+            doc_type = 'unstructured'
+            chunks = chunk_sliding_window(blocks)
+
+    elif path.endswith('.docx'):
+        blocks = read_docx(path)
+        heading_count = sum(1 for b in blocks if b.get('is_heading'))
+
+        if heading_count >= 2:
+            doc_type = 'structured'
+            chunks = chunk_structured(blocks, lambda b: b.get('is_heading'))
+        else:
+            doc_type = 'unstructured'
+            chunks = chunk_sliding_window(blocks)
     else:
-        chunks = chunk_by_sliding_window(elements)
-        doc_type = 'unstructured'
+        raise ValueError(f"Unsupported format: {path}")
 
-    # Filtrar chunks vacíos o demasiado cortos
     chunks = [c for c in chunks if len(c.strip()) > 100]
 
     return {
