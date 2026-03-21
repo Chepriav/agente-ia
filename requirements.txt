@@ -12,5 +12,4 @@ langchain-community
 python-multipart
 aiofiles
 voyageai
-unstructured[pdf,docx]testpkg1testpkg2
-testpkg1testpkg2
+unstructured[pdf,docx]
