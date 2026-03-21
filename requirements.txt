@@ -11,4 +11,5 @@ langchain-anthropic
 langchain-community
 python-multipart
 aiofiles
-voyageaiunstructured[pdf,docx]
+voyageai
+unstructured[pdf,docx]
