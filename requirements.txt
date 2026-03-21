@@ -14,4 +14,5 @@ aiofiles
 voyageai
 unstructured
 pdfminer-six
-python-magicpi-heif
+python-magic
+pi-heif
