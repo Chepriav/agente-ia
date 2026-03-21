@@ -2,6 +2,7 @@ import re
 from pypdf import PdfReader
 from docx import Document as DocxDocument
 
+MAX_CHUNK_SIZE = 1500
 
 def read_document(path: str) -> str:
     """Lee un PDF o Word y devuelve el texto completo."""
@@ -40,7 +41,8 @@ def detect_document_type(text: str) -> str:
 def chunk_by_sections(text: str) -> list[str]:
     """
     Para documentos estructurados.
-    Usa los títulos como separadores y devuelve cada sección completa.
+    Usa los títulos como separadores. Si una sección es demasiado larga
+    la subdivide por párrafos para mantener chunks manejables.
     """
     title_pattern = re.compile(
         r'^(\d+\.|\d+\)|Chapter|Capítulo|Sección|Section|\b[A-Z][A-Z\s]{3,}\b)',
@@ -54,9 +56,17 @@ def chunk_by_sections(text: str) -> list[str]:
     chunks = []
     for i, pos in enumerate(positions):
         end = positions[i + 1] if i + 1 < len(positions) else len(text)
-        chunk = text[pos:end].strip()
-        if len(chunk) > 100:
-            chunks.append(chunk)
+        section = text[pos:end].strip()
+
+        if len(section) < 100:
+            continue
+
+        # Si la sección es demasiado larga, subdividir por párrafos
+        if len(section) > MAX_CHUNK_SIZE:
+            sub_chunks = chunk_by_paragraphs(section)
+            chunks.extend(sub_chunks)
+        else:
+            chunks.append(section)
 
     return chunks
 
