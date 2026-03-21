@@ -1,12 +1,12 @@
 from app.domain.ports.embedding_port import EmbeddingPort
 from app.domain.ports.vector_store_port import VectorStorePort
 from app.domain.ports.document_repo_port import DocumentRepoPort
+from app.domain.utils import normalize_org_id
 
 
 class QueryDocumentsUseCase:
     """
     Caso de uso: hacer una pregunta sobre los documentos de una organización.
-    Recupera contexto relevante y lo devuelve para que la capa API lo envíe al LLM.
     """
 
     def __init__(
@@ -20,10 +20,9 @@ class QueryDocumentsUseCase:
         self.repo = document_repo_port
 
     def execute(self, org_id: str, query: str, n_results: int = 5) -> dict:
-        """
-        Busca los fragmentos más relevantes para la pregunta.
-        Devuelve el contexto y metadata para que la API genere la respuesta.
-        """
+        # Normalizar para buscar en ChromaDB con el mismo ID que se usó al indexar
+        clean_org_id = normalize_org_id(org_id)
+
         # Verificar que la organización existe y tiene documentos
         org = self.repo.get_organization(org_id)
         if org is None:
@@ -35,7 +34,7 @@ class QueryDocumentsUseCase:
 
         # Buscar chunks relevantes
         query_embedding = self.embeddings.embed_query(query)
-        chunks = self.vector_store.search(org_id, query_embedding, n_results)
+        chunks = self.vector_store.search(clean_org_id, query_embedding, n_results)
 
         return {
             "context": chunks,
